@@ -1,0 +1,28 @@
+# Build the clang-dos toolchain packages with this commit of clang-dos/win32-sdk and run the
+# smoke test on every target, using dos-sdk's toolchain workflow. The other
+# repositories are taken at their default branches. Pull requests build the
+# Linux-hosted package only; dos-sdk's nightly release builds both hosts.
+name: clang-dos toolchain
+
+on:
+  pull_request:
+    paths-ignore: ['**/*.md', 'LICENSE*']
+  push:
+    branches: [main]
+    paths-ignore: ['**/*.md', 'LICENSE*']
+  workflow_dispatch:
+    inputs:
+      windows:
+        description: Build the Windows-hosted package too
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  toolchain:
+    uses: clang-dos/dos-sdk/.github/workflows/toolchain.yml@main
+    with:
+      win32_sdk_ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      windows: ${{ inputs.windows || false }}
