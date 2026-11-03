@@ -48,4 +48,23 @@ win-vista-x64)
 *)
   echo "unknown sysroot $name" >&2; exit 1 ;;
 esac
+# The licences of what the sysroot holds, so that it can be passed on as it
+# is: this SDK, mingw-w64 (headers, CRT, import libraries) and LLVM
+# (compiler-rt builtins, libc++, libc++abi, libunwind).
+lic=$SYSROOT/share/licenses
+mkdir -p "$lic/mingw-w64"
+cp "$here/LICENSE" "$lic/win32-sdk-LICENSE"
+for f in COPYING COPYING.MinGW-w64 COPYING.MinGW-w64-runtime DISCLAIMER \
+         DISCLAIMER.PD; do
+  if [ -f "$MINGW_SRC/$f" ]; then cp "$MINGW_SRC/$f" "$lic/mingw-w64/"; fi
+done
+for f in COPYING.MinGW-w64/COPYING.MinGW-w64.txt \
+         COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt; do
+  if [ -f "$MINGW_SRC/$f" ]; then cp "$MINGW_SRC/$f" "$lic/mingw-w64/"; fi
+done
+cp "$LLVM_SRC/llvm/LICENSE.TXT" "$lic/LLVM-LICENSE.TXT"
+if [ -f "$SYSROOT/share/doc/libunicows/license.txt" ]; then
+  cp "$SYSROOT/share/doc/libunicows/license.txt" "$lic/libunicows-LICENSE.txt"
+fi
+cp "$here/NOTICE.md" "$lic/README.md"
 echo "sysroot $name built in $SYSROOT"
