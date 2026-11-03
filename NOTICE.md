@@ -23,6 +23,6 @@ need no notice, thanks to the LLVM exception.
 The DLLs that programs call (`kernel32.dll`, `msvcrt.dll`, `crtdll.dll`,
 `unicows.dll`, ...) are part of Windows and are not in the SDK.
 
-`tools/import-ms-sdk.py`, when present, builds extra sysroots from copies
+`tools/import-ms-sdk.py` builds extra sysroots from copies
 of Microsoft's own SDKs that the user already has. Those sysroots are for
 the user's own use; they are never put in the SDK archives.
