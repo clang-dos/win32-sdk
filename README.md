@@ -16,6 +16,9 @@ scripts/build-cxx.sh             adds libc++, libc++abi and libunwind (2000/XP)
 scripts/build-modern-sysroot.sh  sysroot for Vista and later, with libc++
 cfg/                             --config files for the toolchain package
 tools/check-imports.py           checks a program's imports for a Windows version
+tools/import-ms-sdk.py           sysroots from your own copies of Microsoft's kits
+tools/ms_oldlib.py               its fixes for the libraries of 1993-96 kits
+tools/ms-intrin-shim.h           its fix for the Server 2003 DDK's winnt.h
 tools/msvcrt-versions.txt        which msvcrt.dll has each function
 tools/gen-msvcrt-versions.py     makes msvcrt-versions.txt
 tests/                           the tests, run in Wine
@@ -325,6 +328,82 @@ which loads `tests/tlsdll.cpp` with `LoadLibrary` and uses its
 `thread_local` variables from several threads, and checks that the import
 checker rejects a Vista kernel32 function and a Vista `msvcrt.dll` one. Wine does not limit programs to the
 9x API, so a real Windows 9x machine is still the final test.
+
+## Microsoft's SDKs and DDKs
+
+The sysroots above are made from mingw-w64. `tools/import-ms-sdk.py` makes
+sysroots from Microsoft's own Win32 SDKs and DDKs instead, with their
+headers, import libraries and C runtime, for code written against them.
+Microsoft's kits can't be redistributed, so neither this repository nor
+the toolchain package has any of their files: run the script once on your
+own copies to add them to an unpacked toolchain package.
+
+```sh
+python3 tools/import-ms-sdk.py --sdks /path/to/WindowsSDKs ~/clang-dos
+clang --config=ms-nt351.cfg -O2 hello.c -o hello.exe
+```
+
+`--sdks` is a folder holding the kits under the folder names below (an
+installed tree or the unpacked CD; `--kit-dir KIT=FOLDER` gives one kit's
+folder instead), and every kit found there is imported. Each one becomes
+`sysroots/ms-KIT` and `bin/ms-KIT.cfg` in the package.
+
+| Kit | Folder | Triple | From |
+| --- | --- | --- | --- |
+| `nt31` | `3.1 SDK DDK` | `i386-pc-windows3.10-msvc` | Win32 SDK for NT 3.1 (MSDN, October 1994) |
+| `nt351` | `3.51 SDK` | `i386-pc-windows3.51-msvc` | Win32 SDK, June 1995, with NT 3.1's C runtime |
+| `nt40` | `4.0 W95 SDK (expanded)` | `i486-pc-windows4.0-msvc` | Win32 SDK for NT 4.0 and 95, August 1996, with NT 3.1's C runtime |
+| `w2k` | `5.2.3970.1830 DDK (unpacked)` | `i586-pc-windows5.0-msvc` | Server 2003 SP1 DDK, Windows 2000 headers and libraries |
+| `xp` | `5.2.3970.1830 DDK (unpacked)` | `i586-pc-windows5.1-msvc` | Server 2003 SP1 DDK, XP headers and libraries |
+| `ws03` | `5.2.3970.1830 DDK (unpacked)` | `i586-pc-windows5.2-msvc` | Server 2003 SP1 DDK |
+| `ws03-x64` | `5.2.3970.1830 DDK (unpacked)` | `x86_64-pc-windows5.2-msvc` | Server 2003 SP1 DDK, x64 |
+
+* The kits are used as Microsoft shipped them, so the 1996 SDK's
+  compressed `.LI_` files must be expanded first (`expand -r`) and the
+  DDKs' CABs unpacked into the tree their setup installs (`WINDDK\`).
+  The Aug 1996 SDK and the June 1995 one have no i386 C runtime library,
+  so they take the NT 3.1 SDK's, which also runs on 95 and NT 4.0.
+* The triples are MSVC ones, so programs use Microsoft's ABI and C
+  runtime (statically, `libcmt.lib` or `libc.lib`, whichever the kit has),
+  not mingw-w64's. As with the MinGW triples, the Windows version in the
+  triple sets the default CPU and, with LLD, the subsystem and OS version
+  the linker writes, and for NT 3.x a writable `.rdata`.
+* The config file sets `-fms-compatibility-version` to the compiler the
+  kit came with, defines `_X86_` (or `_AMD64_`), which early headers want
+  from the makefile, and links the kit's C runtime instead of clang's
+  default `libcmt` and `oldnames`.
+* On a case-sensitive file system the headers and libraries are copied
+  with lower-case names, and `vfs.yaml`, a case-insensitive overlay the
+  config file passes with `-vfsoverlay`, lets `#include <Windows.h>` and a
+  library's `/DEFAULTLIB:LIBC` find them, as on Windows.
+* The libraries of the 1993 to 1996 kits need fixing for LLD, which
+  `ms_oldlib.py` does to the sysroot's copies (with the package's
+  `llvm-lib`, or `--llvm-lib`): their archive headers are padded with
+  NULs; their objects give sections an address, with relocations relative
+  to it, and leave out the sections' access bits; and their long-format
+  import libraries (a whole object per import) make LLD build an import
+  table with a DLL's terminator in the middle, so they are rebuilt as
+  short-format ones and checked against the originals. NT 3.1's
+  `crtdll.lib` stays as it is, since its data imports (`_iob` and the
+  like) have no short-format equivalent: use `libcmt`, the default.
+* Those kits' C runtime predates `__int64` and asks for neither kernel32
+  nor SafeSEH: their config files link `kernel32`, pass `-safeseh:no` and
+  link `ll64.lib`, the 64-bit integer helpers (`__alldiv` and the like)
+  taken from the Server 2003 DDK's `libcmt.lib` when that kit is imported
+  too. Without it, 64-bit division doesn't link.
+* The XP and Server 2003 kits' C runtime is built with `/GS`, so their
+  config files link `bufferoverflowu`. The Server 2003 `winnt.h` declares
+  `_interlockedbittestandset` and the like without `volatile`, which clang
+  rejects, so `ms-ws03` and `ms-ws03-x64` include `ms-intrin-shim.h`
+  first. The DDK's `inc/w2k` and `inc/wxp` lack four headers `windows.h`
+  includes, which come from `inc/wnet`.
+* C only: the kits' C++ libraries are for Microsoft's compilers of the
+  time.
+
+`tests/ms-sdk/run-test.sh` tests the script with two small fake kits.
+`tests/ms-sdk/kits-test.py PACKAGE --run` builds and runs a program with
+each imported kit, for testing with the real ones: all seven built and ran
+on Windows 11 at `-O0` and `-O2`.
 
 ## License
 
