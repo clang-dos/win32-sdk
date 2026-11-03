@@ -30,14 +30,19 @@ import argparse
 import json
 import os
 import shutil
+import subprocess
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Each kit: what it is, the Windows it targets, its include and library
 # folders relative to the kit's folder for each architecture (first match
 # wins, so the C runtime headers usually come before the Windows ones),
 # the _MSC_VER of the compiler it came with and extra predefined macros.
-# A folder that does not exist is skipped, so a kit can list the layouts of
-# both its CD and its installed tree.
+# "old" marks the kits from before 1997, whose libraries need ms_oldlib's
+# fixes, "gs" the ones whose C runtime is built with /GS (the security
+# cookie is in bufferoverflowu.lib), "intrin-shim" the ones whose winnt.h
+# declares intrinsics differently from clang (see ms-intrin-shim.h).
 KITS = {
     "nt31": {
         "name": "Win32 SDK for Windows NT 3.1 (MSDN, October 1994)",
@@ -46,6 +51,7 @@ KITS = {
         "msc": "8.0",
         "include": ["sdk/MSTOOLS/H"],
         "lib": ["sdk/MSTOOLS/LIB/I386"],
+        "old": True,
     },
     "nt351": {
         "name": "Win32 SDK for Windows NT 3.51 (June 1995)",
@@ -56,6 +62,7 @@ KITS = {
         "lib": ["sdk/MSTOOLS/LIB/I386", "sdk/MSTOOLS/LIB/WINNT/I386"],
         # It has C runtime headers but no i386 C runtime library.
         "crt": "nt31",
+        "old": True,
     },
     "nt40": {
         "name": "Win32 SDK for Windows NT 4.0 and Windows 95 (August 1996)",
@@ -66,22 +73,28 @@ KITS = {
         "lib": ["sdk/MSTOOLS/LIB/I386", "sdk/MSTOOLS/LIB/WINNT/I386"],
         # No C runtime at all: NT 3.1's runs on 95 and NT 4.0 too.
         "crt": "nt31",
+        "old": True,
     },
+    # The DDKs' inc/w2k and inc/wxp lack a few headers windows.h includes
+    # (cderr.h, lzexpand.h, ole.h, winperf.h): inc/wnet comes after them to
+    # fill the gaps.
     "w2k": {
-        "name": "Windows 2000 from the Windows XP SP1 DDK (2600.1106)",
-        "folder": "5.1.2600.1106 DDK (unpacked)",
+        "name": "Windows 2000 from the Windows Server 2003 SP1 DDK (3790.1830)",
+        "folder": "5.2.3970.1830 DDK (unpacked)",
         "triple": "i586-pc-windows5.0-msvc",
-        "msc": "13.0",
-        "include": ["WINDDK/inc/crt", "WINDDK/inc/w2k"],
-        "lib": ["WINDDK/lib/w2k/i386"],
+        "msc": "14.0",
+        "include": ["WINDDK/inc/crt", "WINDDK/inc/w2k", "WINDDK/inc/wnet"],
+        "lib": ["WINDDK/lib/w2k/i386", "WINDDK/lib/crt/i386"],
+        "gs": True,
     },
     "xp": {
         "name": "Windows XP from the Windows Server 2003 SP1 DDK (3790.1830)",
         "folder": "5.2.3970.1830 DDK (unpacked)",
         "triple": "i586-pc-windows5.1-msvc",
         "msc": "14.0",
-        "include": ["WINDDK/inc/crt", "WINDDK/inc/wxp"],
+        "include": ["WINDDK/inc/crt", "WINDDK/inc/wxp", "WINDDK/inc/wnet"],
         "lib": ["WINDDK/lib/wxp/i386", "WINDDK/lib/crt/i386"],
+        "gs": True,
     },
     "ws03": {
         "name": "Windows Server 2003 SP1 DDK (3790.1830), x86",
@@ -90,6 +103,8 @@ KITS = {
         "msc": "14.0",
         "include": ["WINDDK/inc/crt", "WINDDK/inc/wnet"],
         "lib": ["WINDDK/lib/wnet/i386", "WINDDK/lib/crt/i386"],
+        "gs": True,
+        "intrin-shim": True,
     },
     "ws03-x64": {
         "name": "Windows Server 2003 SP1 DDK (3790.1830), x64",
@@ -98,6 +113,8 @@ KITS = {
         "msc": "14.0",
         "include": ["WINDDK/inc/crt", "WINDDK/inc/wnet"],
         "lib": ["WINDDK/lib/wnet/amd64", "WINDDK/lib/crt/amd64"],
+        "gs": True,
+        "intrin-shim": True,
     },
 }
 
@@ -176,7 +193,7 @@ def write_vfs(sysroot, includes, libs):
         f.write("\n")
 
 
-def write_cfg(path, kit, sysname, triple, msc, defines, crtlibs, vfs):
+def write_cfg(path, kit, sysname, triple, msc, defines, crtlibs, vfs, extra):
     lines = [
         "# %s (imported with import-ms-sdk.py)" % kit,
         "--target=%s" % triple,
@@ -198,6 +215,7 @@ def write_cfg(path, kit, sysname, triple, msc, defines, crtlibs, vfs):
         lines.append("-vfsoverlay <CFGDIR>/../sysroots/%s/vfs.yaml" % sysname)
     lines += ["-Xclang --dependent-lib=%s" % l for l in crtlibs]
     lines += ["-D%s" % d for d in defines]
+    lines += extra
     with open(path, "w") as f:
         f.write("\n".join(lines) + "\n")
 
@@ -223,7 +241,7 @@ def find(base, rels):
     return out
 
 
-def import_kit(name, kitdirs, package):
+def import_kit(name, kitdirs, package, llvm_lib):
     kit = KITS[name]
     base = kitdirs[name]
     incdirs = find(base, kit["include"])
@@ -268,6 +286,32 @@ def import_kit(name, kitdirs, package):
     for need in ("kernel32.lib", "user32.lib"):
         if need not in libs:
             print("%s: warning: no %s" % (name, need), file=sys.stderr)
+    extra = []
+    if kit.get("old"):
+        libdir = os.path.join(sysroot, "lib")
+        notes = fix_old_libs(libdir, libs, llvm_lib)
+        for n in notes:
+            print("%s: %s" % (name, n))
+        # The 1993 C runtime predates __int64: take the helpers clang calls
+        # for 64-bit division and the like from a newer kit, if there is one.
+        ll64 = make_ll64(kitdirs, libdir, llvm_lib)
+        if ll64:
+            libs.append("ll64.lib")
+            extra.append("-Xclang --dependent-lib=ll64")
+        else:
+            print("%s: warning: no ll64.lib (needs the ws03 kit): 64-bit "
+                  "division won't link" % name, file=sys.stderr)
+        # Its libcmt asks for no kernel32 and has no SafeSEH tables.
+        extra += ["-Xclang --dependent-lib=kernel32", "-Wl,-safeseh:no"]
+    if kit.get("gs"):
+        extra.append("-Xclang --dependent-lib=bufferoverflowu")
+    if kit.get("intrin-shim"):
+        shutil.copyfile(os.path.join(HERE, "ms-intrin-shim.h"),
+                        os.path.join(sysroot, "include", SHIM))
+        includes.append(SHIM)
+        extra.append("-include <CFGDIR>/../sysroots/%s/include/%s"
+                     % (sysname, SHIM))
+    libs.sort()
     if os.name != "nt":
         write_vfs(sysroot, includes, libs)
 
@@ -290,10 +334,58 @@ def import_kit(name, kitdirs, package):
     os.makedirs(os.path.join(package, "bin"), exist_ok=True)
     cfg = os.path.join(package, "bin", sysname + ".cfg")
     write_cfg(cfg, kit["name"], sysname, kit["triple"], kit["msc"], defines,
-              crtlibs, os.name != "nt")
+              crtlibs, os.name != "nt", extra)
     print("%s: %d headers, %d libraries -> bin/%s.cfg" %
           (sysname, len(includes), len(libs), sysname))
     return True
+
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SHIM = "clang-dos-ms-intrin-shim.h"
+
+
+def fix_old_libs(libdir, libs, llvm_lib):
+    """Apply ms_oldlib's fixes to the copied libraries of an old kit."""
+    import ms_oldlib
+    notes = []
+    nhdr = nobj = nimp = 0
+    for f in libs:
+        if not f.endswith(".lib"):
+            continue
+        p = os.path.join(libdir, f)
+        nhdr += bool(ms_oldlib.fix_archive(p))
+        nobj += bool(ms_oldlib.fix_objects(p))
+        r = ms_oldlib.convert_import_lib(p, llvm_lib)
+        if r and r.startswith("converted"):
+            nimp += 1
+        elif r:
+            notes.append("%s: %s" % (f, r))
+    notes.insert(0, "fixed %d archives and %d libraries' objects, converted "
+                 "%d import libraries" % (nhdr, nobj, nimp))
+    return notes
+
+
+def make_ll64(kitdirs, libdir, llvm_lib):
+    import ms_oldlib
+    import tempfile
+    for k in ("ws03", "xp"):
+        if k not in kitdirs:
+            continue
+        libcmt = find(kitdirs[k], ["WINDDK/lib/crt/i386"])
+        libcmt = [os.path.join(d, f) for d in libcmt for f in os.listdir(d)
+                  if f.lower() == "libcmt.lib"]
+        if not libcmt:
+            continue
+        with tempfile.TemporaryDirectory() as tmp:
+            objs = ms_oldlib.extract_ll64(libcmt[0], tmp)
+            if not objs:
+                continue
+            out = os.path.join(libdir, "ll64.lib")
+            r = subprocess.run([llvm_lib, "/out:" + out] + objs,
+                               capture_output=True, text=True)
+            if r.returncode == 0:
+                return out
+    return None
 
 
 # The C runtime libraries a kit can take from another.
@@ -310,6 +402,8 @@ def main():
     ap.add_argument("--sdks", help="folder holding the kits")
     ap.add_argument("--kit-dir", action="append", default=[],
                     metavar="KIT=FOLDER", help="one kit's folder")
+    ap.add_argument("--llvm-lib", help="llvm-lib to rebuild old import "
+                    "libraries with (default: the package's)")
     ap.add_argument("--list", action="store_true", help="list the kits")
     a = ap.parse_args()
 
@@ -336,6 +430,10 @@ def main():
             ap.error("bad --kit-dir %s" % kd)
         kitdirs[k] = d
     names = a.kits or [k for k in KITS if k in kitdirs]
+    llvm_lib = a.llvm_lib or os.path.join(
+        a.package, "bin", "llvm-lib" + (".exe" if os.name == "nt" else ""))
+    if any(KITS[k].get("old") for k in names) and not os.path.exists(llvm_lib):
+        ap.error("no %s: give --llvm-lib" % llvm_lib)
     if not names:
         ap.error("no kits found: give --sdks or --kit-dir")
     ok = True
@@ -343,7 +441,7 @@ def main():
         if k not in kitdirs:
             print("%s: no folder for it" % k, file=sys.stderr)
             ok = False
-        elif not import_kit(k, kitdirs, a.package):
+        elif not import_kit(k, kitdirs, a.package, llvm_lib):
             ok = False
     return 0 if ok else 1
 

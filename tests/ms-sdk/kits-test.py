@@ -2,7 +2,7 @@
 """Build kit-hello.c with every ms-*.cfg in a toolchain package, check the
 programs' PE headers and, on Windows or with --wine, run them.
 
-    kits-test.py PACKAGE [--clang CLANG] [--run] [-- EXTRA CLANG FLAGS]
+    kits-test.py PACKAGE [--clang CLANG] [--run] [EXTRA CLANG FLAGS]
 
 --stock-clang tests the kits with a clang from llvm.org.
 """
@@ -44,8 +44,8 @@ def main():
     ap.add_argument("--stock-clang", action="store_true",
                     help="a clang without clang-dos's MSVC changes: pass the"
                     " subsystem version to the linker by hand")
-    ap.add_argument("extra", nargs="*")
-    a = ap.parse_args()
+    a, extra = ap.parse_known_args()
+    a.extra = [x for x in extra if x != "--"]
     cfgs = sorted(glob.glob(os.path.join(a.package, "bin", "ms-*.cfg")))
     if not cfgs:
         print("no ms-*.cfg in %s/bin" % a.package)
@@ -61,9 +61,11 @@ def main():
                os.path.join(here, "kit-hello.c"), "-o", exe] + a.extra
         if a.stock_clang:
             v = "%d.%d" % want
-            cmd += ["-Wl,-subsystem:console," + v, "-Wl,-osversion:" + v]
+            # -Xlinker: -Wl would split the version at the comma.
+            cmd += ["-Xlinker", "-subsystem:console," + v,
+                    "-Xlinker", "-osversion:" + v]
             if want < (4, 0):
-                cmd.append("-Wl,-section:.rdata,RW")
+                cmd += ["-Xlinker", "-section:.rdata,RW"]
         r = subprocess.run(cmd, capture_output=True, text=True)
         if r.returncode:
             print("%s: BUILD FAILED\n%s%s" % (kit, r.stdout, r.stderr))

@@ -9,7 +9,10 @@
 set -e
 : "${BIN:?set BIN}"
 here=$(cd "$(dirname "$0")" && pwd)
-top=$(cd "$here/../.." && pwd)
+# In the toolchain package this folder is share/clang-dos/ms-sdk, next to
+# import-ms-sdk.py.
+import=$here/../import-ms-sdk.py
+[ -f "$import" ] || import=$here/../../tools/import-ms-sdk.py
 W=${WORK:-$(mktemp -d)}
 sdks=$W/sdks pkg=$W/pkg
 rm -rf "$sdks" "$pkg"
@@ -36,9 +39,13 @@ done
 echo junk > "$nt31/LIB/MIPS/KERNEL32.LIB"
 "$BIN/clang" --target=i386-pc-windows-msvc -fms-omit-default-lib \
   -Xclang --dependent-lib=LIBC -c "$here/crt.c" -o "$W/crt.obj"
+# Make it look like a 1993 one: section addresses in the object and
+# relocations relative to them, no MEM_ bits, NUL-padded archive headers.
+${PYTHON:-python3} "$here/make-old.py" obj "$W/crt.obj"
 "$BIN/llvm-lib" /out:"$nt31/LIB/I386/LIBC.LIB" "$W/crt.obj"
+${PYTHON:-python3} "$here/make-old.py" lib "$nt31/LIB/I386/LIBC.LIB"
 
-python3 "$top/tools/import-ms-sdk.py" --sdks "$sdks" "$pkg"
+${PYTHON:-python3} "$import" --llvm-lib "$BIN/llvm-lib" --sdks "$sdks" "$pkg"
 cfg=$pkg/bin/ms-nt351.cfg
 r=$pkg/sysroots/ms-nt351
 test -f "$pkg/bin/ms-nt31.cfg"
@@ -49,6 +56,14 @@ test -f "$r/include/sys/types.h"
 test -f "$r/lib/libc.lib"
 grep -q i386-pc-windows3.51-msvc "$cfg"
 grep -q "dependent-lib=libc$" "$cfg"
+
+# The import fixed the copy of LIBC.LIB, not the kit's.
+${PYTHON:-python3} "$here/make-old.py" check "$r/lib/libc.lib"
+! ${PYTHON:-python3} "$here/make-old.py" check "$nt31/LIB/I386/LIBC.LIB" 2>/dev/null
+
+# The intrinsics shim: winnt.h's declaration without volatile compiles.
+"$BIN/clang" --target=x86_64-pc-windows-msvc -Werror -Wno-ignored-pragmas \
+  -include "$(dirname "$import")/ms-intrin-shim.h" -c "$here/shim.c" -o "$W/shim.obj"
 
 # hello.c includes <Windows.h> and <SYS/Types.h>; LIBC.LIB comes from the
 # objects' /DEFAULTLIB:libc, and libc.lib's own crt.obj asks for LIBC.LIB, as
