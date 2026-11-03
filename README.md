@@ -329,6 +329,25 @@ which loads `tests/tlsdll.cpp` with `LoadLibrary` and uses its
 checker rejects a Vista kernel32 function and a Vista `msvcrt.dll` one. Wine does not limit programs to the
 9x API, so a real Windows 9x machine is still the final test.
 
+## Redistributing the SDK
+
+The sysroots hold no Microsoft files and can be passed on freely: see
+`NOTICE.md` for what each part is and its licence. `build-sysroot.sh`
+puts the licences in each sysroot's `share/licenses/`. Programs built
+with them should come with mingw-w64's runtime notice
+(`share/licenses/mingw-w64/COPYING.MinGW-w64-runtime.txt`), as with any
+mingw-w64 build.
+
+```sh
+sh tools/make-dist.sh ~/clang-dos-linux-x86_64 win32-sdk.tar.xz
+```
+
+makes the SDK on its own from an unpacked clang-dos package: the five
+sysroots, their config files, the checkers and the licences, laid out to
+unpack over a clang-dos package. dos-sdk's toolchain workflow makes it
+with every package. Sysroots imported from Microsoft's own kits
+(`tools/import-ms-sdk.py`, below) are never put in it.
+
 ## Microsoft's SDKs and DDKs
 
 The sysroots above are made from mingw-w64. `tools/import-ms-sdk.py` makes
