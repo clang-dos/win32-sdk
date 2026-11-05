@@ -44,7 +44,7 @@ bad() {
   sed 's/^/    /' "$1.log" | head -20
 }
 
-for target in ${TARGETS:-i486-pc-windows4.0-gnu i486-pc-windows4.10-gnu \
+for target in ${TARGETS:-i386-pc-windows4.0-gnu i486-pc-windows4.10-gnu \
     i586-pc-windows4.90-gnu}; do
   # Windows NT 3.x, 2000 and later are checked as NT; 4.x is 9x.
   nt=
@@ -129,7 +129,7 @@ done
 if [ -n "$wide" ]; then
   printf '#include <stdio.h>\nint main(void) { return !_wfopen(L"x", L"r"); }\n' \
     >wfopen.c
-  if "$BIN/clang" --target=i486-pc-windows4.0-gnu --sysroot="$SYSROOT" \
+  if "$BIN/clang" --target=i386-pc-windows4.0-gnu --sysroot="$SYSROOT" \
       -fuse-ld=lld wfopen.c -o wfopen.exe >wfopen.log 2>&1 &&
       ! python3 "$here/../tools/check-imports.py" wfopen.exe >>wfopen.log 2>&1 &&
       grep -q "_wfopen calls a Unicode stub" wfopen.log; then

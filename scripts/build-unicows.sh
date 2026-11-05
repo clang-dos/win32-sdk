@@ -6,14 +6,14 @@
 #   BIN             directory with clang and llvm-ar
 #   SYSROOT         sysroot from build-win9x.sh
 #   WORK            build directory (default: ./build-unicows)
-#   CPU             -march (default: i486)
+#   CPU             -march (default: i386)
 #
 # It needs nasm. Link programs with -lunicows (see ../README.md).
 set -e
 : "${LIBUNICOWS_SRC:?set LIBUNICOWS_SRC}" "${BIN:?set BIN}" \
   "${SYSROOT:?set SYSROOT}"
 WORK=${WORK:-$PWD/build-unicows}
-CPU=${CPU:-i486}
+CPU=${CPU:-i386}
 mkdir -p "$WORK"
 CC="$BIN/clang --target=i686-w64-windows-gnu -march=$CPU --sysroot=$SYSROOT"
 src=$LIBUNICOWS_SRC/src

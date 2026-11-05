@@ -8,9 +8,9 @@
 #   BIN       directory with clang, llvm-ar, llvm-ranlib, llvm-nm
 #   SYSROOT   sysroot from build-win9x.sh
 #   WORK      build directory (default: ./build-win32-cxx)
-#   CPU       -march for the libraries (default: i686). C++ needs at least a
-#             486: atomics are LOCK XADD and LOCK CMPXCHG, which the 386
-#             lacks, even for -march=i386.
+#   CPU       -march for the libraries (default: i686). With i386, atomics
+#             are calls to compiler-rt's __sync_* functions, which also work
+#             on an 80386 (see ../README.md).
 #
 # The libraries are static. They use emulated TLS, like programs for
 # versions before Vista (see ../README.md), and the code that the sysroot's

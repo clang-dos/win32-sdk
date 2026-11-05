@@ -52,7 +52,7 @@ version in the target triple and a sysroot made from mingw-w64.
 
 | Windows | Triple | Default CPU |
 | --- | --- | --- |
-| 95 (and NT 4.0) | `i486-pc-windows4.0-gnu` | 80486 |
+| 95 (and NT 4.0) | `i386-pc-windows4.0-gnu` | 80386 |
 | 98 | `i486-pc-windows4.10-gnu` | 80486 |
 | ME | `i586-pc-windows4.90-gnu` | Pentium |
 
@@ -89,18 +89,21 @@ its own test suite runs on Windows 9x. The sysroot holds:
 * compiler-rt builtins, as `libgcc.a` so clang links them by default, and
   empty `libgcc_eh.a`, `crtbegin.o` and `crtend.o`, which C does not need.
 
-Everything is compiled for an 80486 (`CPU=i486`). An 80386 has no
-`CMPXCHG` or `XADD`, so 386 code calls `InterlockedCompareExchange` and
-`InterlockedExchangeAdd` in kernel32, which Windows 95 does not have.
-`CPU=i386` builds a sysroot for a 386 that runs on Windows 98 and NT 4.0
-only.
+Everything is compiled for an 80386 (`CPU=i386`), which Windows 95 and NT
+run on. An 80386 has no `BSWAP`, `XADD` or `CMPXCHG`. For `-march=i386`
+clang-dos/llvm swaps bytes with shifts and makes atomic writes calls to
+`__sync_*` functions in compiler-rt's builtins (`libgcc.a`). On an 80486
+or later those use `LOCK XADD` and `LOCK CMPXCHG`; on an 80386 they take a
+lock, which costs a `Sleep` only when two threads write atomics at once.
+Atomic loads stay plain moves. `CPU=i486` builds libraries that need a
+486.
 
 ### Building programs
 
 ```sh
-clang --target=i486-pc-windows4.0-gnu --sysroot=$SYSROOT -fuse-ld=lld \
+clang --target=i386-pc-windows4.0-gnu --sysroot=$SYSROOT -fuse-ld=lld \
   hello.c -o hello.exe
-clang --target=i486-pc-windows4.0-gnu --sysroot=$SYSROOT -fuse-ld=lld \
+clang --target=i386-pc-windows4.0-gnu --sysroot=$SYSROOT -fuse-ld=lld \
   -mwindows gui.c -o gui.exe
 ```
 
@@ -142,7 +145,7 @@ Unicode already.
 ```sh
 LIBUNICOWS_SRC=~/libunicows-1.1.2 BIN=~/llvm/build/bin \
   SYSROOT=~/win9x-sysroot sh scripts/build-unicows.sh
-clang --target=i486-pc-windows4.0-gnu --sysroot=$SYSROOT -fuse-ld=lld \
+clang --target=i386-pc-windows4.0-gnu --sysroot=$SYSROOT -fuse-ld=lld \
   -municode prog.c -lunicows -o prog.exe
 ```
 
@@ -194,10 +197,8 @@ clang --target=i386-pc-windows3.10-gnu --sysroot=$CRTDLL_SYSROOT \
   Windows too (no 3D frames from Windows 95 on).
 * Write the minor version with two digits: `windows3.1` asks for 3.01,
   which loads too, but `windows3.5` asks for 3.05.
-* An `i386` triple targets the 80386, which NT 3.x runs on. The sysroot's
-  libraries are still built for an 80486 unless it was built with
-  `CPU=i386`; `InterlockedCompareExchange`, which 386 code calls in
-  kernel32, only exists from NT 4.0.
+* An `i386` triple targets the 80386, which NT 3.x runs on, like the
+  sysroot's libraries.
 * LLD puts the import address table in `.rdata`, which is read-only. The
   NT 3.x loader predates the IAT directory that NT 4.0 and later use to make
   the table writable while they fill it in, so for a version before 4.0
@@ -286,7 +287,7 @@ clang++ --target=i586-pc-windows5.1-gnu --sysroot=$SYSROOT -fuse-ld=lld \
 ### C++ on 9x, NT 3.x, NT 4.0 and Win32s
 
 The `win9x-msvcrt` and `win9x-crtdll` sysroots have libc++, libc++abi and
-libunwind too, built by `build-cxx.sh` for a 486, and their config files
+libunwind too, built by `build-cxx.sh` for a 386, and their config files
 pass `-stdlib=libc++`:
 
 ```sh
@@ -313,8 +314,10 @@ NT 4.0 lack. On top of the 2000/XP code (below):
 * crtdll.dll (NT 3.x, Win32s, bare 95): no per-thread locales, so a named
   locale changes the process locale for each call, and files seek with
   32-bit positions.
-* 64-bit atomics: a 486 has no `CMPXCHG8B`, so they are calls to the
-  compiler-rt atomic functions in `libgcc.a`, which take a lock.
+* atomics: a 486 has no `CMPXCHG8B`, so 64-bit ones are calls to the
+  compiler-rt atomic functions in `libgcc.a`, which take a lock. The
+  others are calls to its `__sync_*` functions, which work on a 386 too
+  (see above).
 
 The C runtime is still the system one, `msvcrt.dll` or `crtdll.dll`, with
 what it lacks (no `_l` functions, an old `printf`).
@@ -324,9 +327,6 @@ what it lacks (no `_l` functions, an old `printf`).
 * PE TLS callbacks never run on 9x. `__thread` variables work in an EXE;
   with clang-dos/llvm's default of emulated TLS for versions before 6.0
   they work in DLLs too. C++ `thread_local` destructors do not run on 9x.
-* C++ needs a 486 or later, also for NT 3.x and Win32s: clang makes
-  atomics `LOCK XADD` and `LOCK CMPXCHG` even for `-march=i386`, and
-  libc++ uses them from the start (reference counts, locales).
 
 ### Checking imports
 
@@ -351,7 +351,7 @@ BIN=~/llvm/build/bin SYSROOT=~/win9x-sysroot DLLS=~/win9x-dlls \
 
 (`TARGETS="i586-pc-windows5.0-gnu i586-pc-windows5.1-gnu"` with a 2000/XP
 sysroot, `TARGETS="i386-pc-windows3.10-gnu i386-pc-windows3.51-gnu
-i486-pc-windows4.0-gnu"` with the crtdll one) builds `tests/hello.c`,
+i386-pc-windows4.0-gnu"` with the crtdll one) builds `tests/hello.c`,
 `tests/libc.c`, `tests/tchar.c` (a native ANSI build of generic-text code),
 `tests/gui.c` and, when the sysroot has libunicows, `tests/unicode.c` (a
 Unicode build with unicows) for 95, 98 and ME at `-O0`, `-O2` and `-Os`,
