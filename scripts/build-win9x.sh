@@ -1,7 +1,7 @@
 #!/bin/sh
 # Build a Windows 95/98/ME sysroot for clang: mingw-w64 headers and CRT
 # linked against the system msvcrt.dll, and compiler-rt builtins, all compiled
-# for an 80486 without SSE, so they run on any 9x machine with a 486 or later.
+# for an 80386 without SSE, so they run on any machine that runs 95 or NT.
 #
 #   LLVM_SRC   llvm-project checkout (for compiler-rt)
 #   MINGW_SRC  mingw-w64 checkout (a recent one: older ones import functions
@@ -9,7 +9,7 @@
 #   BIN        directory with clang, llvm-ar, llvm-ranlib, llvm-dlltool, llvm-nm
 #   SYSROOT    output sysroot
 #   WORK       build directory (default: ./build-win9x)
-#   CPU        -march for the libraries (default: i486; see README.md)
+#   CPU        -march for the libraries (default: i386; see README.md)
 #   CRT        C runtime DLL: msvcrt (default) or crtdll, which every Windows
 #              95 has (see ../README.md)
 #   WINNT      default _WIN32_WINNT for the headers (default: 0x0400 for 95
@@ -22,7 +22,7 @@ set -e
 : "${LLVM_SRC:?set LLVM_SRC}" "${MINGW_SRC:?set MINGW_SRC}" \
   "${BIN:?set BIN}" "${SYSROOT:?set SYSROOT}"
 WORK=${WORK:-$PWD/build-win9x}
-CPU=${CPU:-i486}
+CPU=${CPU:-i386}
 CRT=${CRT:-msvcrt}
 WINNT=${WINNT:-0x0400}
 mkdir -p "$WORK" "$SYSROOT"
@@ -57,7 +57,8 @@ mkdir -p "$WORK/crt"
 
 # compiler-rt builtins, with the atomic functions: a 486 has no CMPXCHG8B,
 # so 64-bit atomics (which libc++ uses) are calls to __atomic_load_8 and so
-# on, which take a lock.
+# on, which take a lock. For an 80386, which has no CMPXCHG or XADD either,
+# the builtins also have the __sync_* functions that i386 code calls.
 cmake -G Ninja -S "$LLVM_SRC/compiler-rt/lib/builtins" -B "$WORK/builtins" \
   -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_C_COMPILER="$BIN/clang" -DCMAKE_ASM_COMPILER="$BIN/clang" \
