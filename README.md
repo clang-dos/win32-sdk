@@ -12,7 +12,7 @@ builds the toolchain packages and takes these sysroots from here.
 build-sysroot.sh                 builds one of the package's sysroots (below)
 scripts/build-win9x.sh           mingw-w64 sysroot for 9x, NT 3.x/4.0, 2000/XP
 scripts/build-unicows.sh         adds libunicows to it
-scripts/build-cxx.sh             adds libc++, libc++abi and libunwind (2000/XP)
+scripts/build-cxx.sh             adds libc++, libc++abi and libunwind (9x to XP)
 scripts/build-modern-sysroot.sh  sysroot for Vista and later, with libc++
 cfg/                             --config files for the toolchain package
 tools/check-imports.py           checks a program's imports for a Windows version
@@ -33,8 +33,8 @@ LIBUNICOWS_SRC=~/libunicows-1.1.2 sh build-sysroot.sh NAME OUTPUT
 
 | NAME | For | Config files |
 | --- | --- | --- |
-| `win9x-msvcrt` | 95/98/ME and NT 4.0 (msvcrt.dll), with libunicows | `nt4`, `win95`, `win98`, `winme` |
-| `win9x-crtdll` | NT 3.x, Win32s and 95 without msvcrt.dll (crtdll.dll) | `win32s`, `nt31`, `nt35`, `nt351`, `win95-crtdll` |
+| `win9x-msvcrt` | 95/98/ME and NT 4.0 (msvcrt.dll), with libunicows and libc++ | `nt4`, `win95`, `win98`, `winme` |
+| `win9x-crtdll` | NT 3.x, Win32s and 95 without msvcrt.dll (crtdll.dll), with libc++ | `win32s`, `nt31`, `nt35`, `nt351`, `win95-crtdll` |
 | `win2k-xp` | 2000 and XP, with libc++, libc++abi and libunwind | `win2000`, `winxp` |
 | `win-vista` | Vista to 11, 32-bit, with libc++ | `vista`, `win7`, `win8`, `win81`, `win10` |
 | `win-vista-x64` | the same, 64-bit | `vista-x64`, `win7-x64`, ... |
@@ -283,15 +283,50 @@ clang++ --target=i586-pc-windows5.1-gnu --sysroot=$SYSROOT -fuse-ld=lld \
   programs to that API, and no real 2000 or XP machine has run them yet.
   `--dlls` with DLLs copied from a real system checks every import.
 
+### C++ on 9x, NT 3.x, NT 4.0 and Win32s
+
+The `win9x-msvcrt` and `win9x-crtdll` sysroots have libc++, libc++abi and
+libunwind too, built by `build-cxx.sh` for a 486, and their config files
+pass `-stdlib=libc++`:
+
+```sh
+clang++ --config=win98.cfg -O2 hello.cpp -o hello.exe
+clang++ --config=nt351.cfg -O2 hello.cpp -o hello.exe
+```
+
+Their headers are for Windows before 2000 (`_WIN32_WINNT` 0x0400), for
+which the libc++ in clang-dos/llvm also does without what 9x, NT 3.x and
+NT 4.0 lack. On top of the 2000/XP code (below):
+
+* threads: a mutex is a count of waiting threads and a semaphore, since 9x
+  has no `TryEnterCriticalSection`; `this_thread::yield` is `Sleep(0)`. On
+  9x, which can't get a thread's ID from its handle, `std::thread` keeps
+  the IDs of the threads it makes.
+* files: `<filesystem>` and `fstream`s opened with a wide name call the
+  Unicode functions on NT, found at run time, so no program imports a 9x
+  stub. On 9x and Win32s they convert the name to the ANSI code page (a
+  name that doesn't fit is refused) and call the ANSI function. Status
+  comes from `GetFileAttributes` and `FindFirstFile`, as 9x can't open a
+  directory; `rename` over a file deletes it first; there are no hard
+  links. `SetFilePointerEx` and `CreateHardLinkW` (2000) and
+  `GetSystemTimeAsFileTime` (NT 3.5) are looked up at run time.
+* crtdll.dll (NT 3.x, Win32s, bare 95): no per-thread locales, so a named
+  locale changes the process locale for each call, and files seek with
+  32-bit positions.
+* 64-bit atomics: a 486 has no `CMPXCHG8B`, so they are calls to the
+  compiler-rt atomic functions in `libgcc.a`, which take a lock.
+
+The C runtime is still the system one, `msvcrt.dll` or `crtdll.dll`, with
+what it lacks (no `_l` functions, an old `printf`).
+
 ### What does not work
 
 * PE TLS callbacks never run on 9x. `__thread` variables work in an EXE;
   with clang-dos/llvm's default of emulated TLS for versions before 6.0
   they work in DLLs too. C++ `thread_local` destructors do not run on 9x.
-* C++ on 9x, NT 3.x and NT 4.0: the libc++ fallbacks need
-  `TryEnterCriticalSection` and `SwitchToThread` (NT 4.0) and ntdll's
-  `NtQueryInformationFile`, which 9x lacks, and `build-cxx.sh` has only
-  been tested for 2000 and XP.
+* C++ needs a 486 or later, also for NT 3.x and Win32s: clang makes
+  atomics `LOCK XADD` and `LOCK CMPXCHG` even for `-march=i386`, and
+  libc++ uses them from the start (reference counts, locales).
 
 ### Checking imports
 
@@ -315,12 +350,14 @@ BIN=~/llvm/build/bin SYSROOT=~/win9x-sysroot DLLS=~/win9x-dlls \
 ```
 
 (`TARGETS="i586-pc-windows5.0-gnu i586-pc-windows5.1-gnu"` with a 2000/XP
-sysroot) builds `tests/hello.c`, `tests/libc.c`, `tests/tchar.c` (a native ANSI
-build of generic-text code), `tests/gui.c` and, when the sysroot has
-libunicows, `tests/unicode.c` (a Unicode build with unicows) for 95, 98 and
-ME at `-O0`, `-O2` and `-Os`, checks their imports and runs the console
-tests under Wine when it is installed. For 2000 and XP with libc++, it
-also builds `tests/cxx.cpp` (iostreams, numbers through the C locale,
+sysroot, `TARGETS="i386-pc-windows3.10-gnu i386-pc-windows3.51-gnu
+i486-pc-windows4.0-gnu"` with the crtdll one) builds `tests/hello.c`,
+`tests/libc.c`, `tests/tchar.c` (a native ANSI build of generic-text code),
+`tests/gui.c` and, when the sysroot has libunicows, `tests/unicode.c` (a
+Unicode build with unicows) for 95, 98 and ME at `-O0`, `-O2` and `-Os`,
+checks their imports and runs the console tests under Wine when it is
+installed, with Wine reporting each target's Windows version. When the
+sysroot has libc++, it also builds `tests/cxx.cpp` (iostreams, numbers through the C locale,
 exceptions, RTTI), `tests/threads.cpp` (mutexes, condition variables,
 `call_once`, thread IDs, `thread_local` destructors, futures,
 `atomic::wait`), `tests/fs.cpp` (`<filesystem>`) and `tests/tlsmain.cpp`,

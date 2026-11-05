@@ -1,6 +1,6 @@
-// <filesystem> on Windows 2000 and XP, which have no
-// GetFileInformationByHandleEx, SetFileInformationByHandle or
-// GetFinalPathNameByHandleW: libc++ calls ntdll there. Prints ALL PASSED.
+// <filesystem> on Windows before Vista: libc++ calls ntdll on 2000 and XP,
+// and the ANSI file functions on 9x, which can't open a directory.
+// Prints ALL PASSED.
 #include <cstdio>
 #include <filesystem>
 #include <fstream>

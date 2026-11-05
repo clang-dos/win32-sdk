@@ -17,7 +17,9 @@
 #
 # When the sysroot has libunicows.a (build-unicows.sh), the tests include a
 # Unicode build linked with it. When it has libc++.a (build-cxx.sh), the
-# Windows 2000 and XP tests include C++ programs.
+# tests include C++ programs. Wine reports the target's Windows version to
+# each program (95, 98 or ME for the 4.x triples), so libc++ takes the paths
+# it takes there.
 : "${BIN:?set BIN}" "${SYSROOT:?set SYSROOT}"
 here=$(cd "$(dirname "$0")" && pwd)
 out=${WORK:-$PWD/build-win9x-tests}
@@ -48,21 +50,22 @@ for target in ${TARGETS:-i486-pc-windows4.0-gnu i486-pc-windows4.10-gnu \
   nt=
   winver=
   case $target in
+    *-windows4.0-*) winver=win95 ;;
+    *-windows4.10-*) winver=win98 ;;
+    *-windows4.90-*) winver=winme ;;
     *-windows3.*) winver=nt351 ;;
     *-windows5.0*) winver=win2k ;;
     *-windows5.1*) winver=winxp ;;
     *-windows5.2*) winver=win2003 ;;
   esac
-  if [ -n "$winver" ]; then
-    nt=${target#*-windows}
-    nt=--nt=${nt%%-*}
-  fi
-  ttests=$tests
   case $target in
-    *-windows5.*)
-      [ -f "$SYSROOT/lib/libc++.a" ] &&
-        ttests="$ttests cxx threads fs tlsmain" ;;
+    *-windows3.* | *-windows5.*)
+      nt=${target#*-windows}
+      nt=--nt=${nt%%-*}
+      ;;
   esac
+  ttests=$tests
+  [ -f "$SYSROOT/lib/libc++.a" ] && ttests="$ttests cxx threads fs tlsmain"
   for opt in ${OPTS:-O0 O2 Os}; do
     for t in $ttests; do
       name=$t-$target-$opt
