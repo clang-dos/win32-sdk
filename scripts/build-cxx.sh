@@ -11,6 +11,8 @@
 #   CPU       -march for the libraries (default: i686). With i386, atomics
 #             are calls to compiler-rt's __sync_* functions, which also work
 #             on an 80386 (see ../README.md).
+#   LIBC      the sysroot's C library: mingw (default; msvcrt.dll or
+#             crtdll.dll) or picolibc (a sysroot from build-picolibc.sh)
 #
 # The libraries are static. They use emulated TLS, like programs for
 # versions before Vista (see ../README.md), and the code that the sysroot's
@@ -32,6 +34,14 @@ SYSROOT=$(cd "$SYSROOT" && pwd)
 
 TARGET=i686-w64-windows-gnu
 FLAGS="-march=$CPU --sysroot=$SYSROOT -femulated-tls"
+EXTRA=
+if [ "${LIBC:-mingw}" = picolibc ]; then
+  # picolibc keeps thread-local variables in native TLS and has no
+  # emutls; the libraries can't be linked into test programs before the
+  # sysroot has them, so CMake only compiles its checks.
+  FLAGS="-march=$CPU --sysroot=$SYSROOT -fno-emulated-tls"
+  EXTRA="-DRUNTIMES_USE_LIBC=picolibc -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY"
+fi
 # clang turns sized deallocation off for MinGW, but libc++'s
 # memory_resource.cpp calls the sized aligned operator delete.
 CXXFLAGS="$FLAGS -fsized-deallocation"
@@ -56,7 +66,7 @@ cmake -G Ninja -S "$LLVM_SRC/runtimes" -B "$WORK" \
   -DLIBCXX_HAS_WIN32_THREAD_API=ON -DLIBCXX_LIBDIR_SUFFIX="" \
   -DLIBCXX_INCLUDE_TESTS=OFF -DLIBCXX_INCLUDE_BENCHMARKS=OFF \
   -DLIBCXX_INSTALL_MODULES=OFF -DLIBCXX_ENABLE_ABI_LINKER_SCRIPT=OFF \
-  >"$WORK/cmake.log"
+  $EXTRA >"$WORK/cmake.log"
 ninja -C "$WORK" >"$WORK/build.log"
 ninja -C "$WORK" install >/dev/null
 

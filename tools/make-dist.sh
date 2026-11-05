@@ -6,8 +6,8 @@
 #
 # The archive unpacks over a clang-dos package (or next to its bin/):
 #   bin/<target>.cfg                the --config files of the Windows targets
-#   sysroots/<name>/                the five mingw-w64 sysroots, each with
-#                                   share/licenses/
+#   sysroots/<name>/                the five mingw-w64 sysroots and the
+#                                   picolibc one, each with share/licenses/
 #   share/clang-dos/                check-imports.py, msvcrt-versions.txt,
 #                                   build-modern-sysroot.sh, README
 #   share/licenses/win32-sdk/       the licences (see NOTICE.md)
@@ -27,6 +27,14 @@ for n in $names; do
   [ -d "$pkg/sysroots/$n" ] || { echo "no sysroot $n in $pkg" >&2; exit 1; }
   cp -R "$pkg/sysroots/$n" "$d/sysroots/"
 done
+# Packages made before it have no picolibc sysroot.
+if [ -d "$pkg/sysroots/win32-picolibc" ]; then
+  cp -R "$pkg/sysroots/win32-picolibc" "$d/sysroots/"
+  cp "$pkg/sysroots/win32-picolibc/share/licenses/picolibc-COPYING" \
+    "$d/share/licenses/win32-sdk/"
+else
+  rm -f "$d/bin/win32-picolibc.cfg" "$d/bin/nt31-picolibc.cfg"
+fi
 cp "$here/tools/check-imports.py" "$here/tools/msvcrt-versions.txt" \
   "$here/scripts/build-modern-sysroot.sh" "$d/share/clang-dos/"
 cp "$here/README.md" "$d/share/clang-dos/docs/win32-README.md"

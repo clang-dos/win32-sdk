@@ -9,6 +9,8 @@
 #                   win9x-crtdll    NT 3.x, Win32s and bare 95 (crtdll.dll),
 #                                   libc++
 #                   win2k-xp        2000/XP with libc++, libc++abi, libunwind
+#                   win32-picolibc  95/98/ME and NT 3.1 on with picolibc as the C
+#                                   library (no C runtime DLL), libc++
 #                   win-vista       Vista to 11, 32-bit, with libc++
 #                   win-vista-x64   the same, 64-bit
 #   OUTPUT          the sysroot directory
@@ -16,6 +18,7 @@
 #   LLVM_SRC        clang-dos/llvm checkout
 #   MINGW_SRC       mingw-w64 checkout
 #   LIBUNICOWS_SRC  unpacked libunicows-1.1.2-src.tar.gz (win9x-msvcrt)
+#   PICOLIBC_SRC    clang-dos/picolibc checkout (win32-picolibc)
 #   WORK            build directory (default: ./build-sysroot-NAME)
 set -e
 name=${1:?usage: build-sysroot.sh NAME OUTPUT} out=${2:?}
@@ -42,6 +45,11 @@ win9x-crtdll)
 win2k-xp)
   WINNT=0x0500 CPU=i586 sh "$here/scripts/build-win9x.sh"
   WORK=$WORK/cxx CPU=i586 sh "$here/scripts/build-cxx.sh"
+  ;;
+win32-picolibc)
+  : "${PICOLIBC_SRC:?set PICOLIBC_SRC}"
+  export PICOLIBC_SRC
+  sh "$here/scripts/build-picolibc.sh"
   ;;
 win-vista)
   ARCH=i686 sh "$here/scripts/build-modern-sysroot.sh"

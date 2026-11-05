@@ -12,6 +12,7 @@ from source.
 | C runtime start-up and import libraries | `lib/crt*.o`, `lib/lib*.a` | mingw-w64 | ZPL 2.1 and public domain (`mingw-w64/COPYING.MinGW-w64-runtime.txt`) |
 | Compiler builtins, libc++, libc++abi, libunwind | `lib/libgcc.a`, `lib/libc++*.a`, `lib/libunwind.a`, `include/c++/` | LLVM | Apache 2.0 with LLVM exception (`LLVM-LICENSE.TXT`) |
 | libunicows (95/98/ME sysroot) | `lib/libunicows.a` | libunicows 1.1.2 | MIT (`libunicows-LICENSE.txt`) |
+| C library (`win32-picolibc` sysroot) | `lib/libc.a`, `lib/libm.a`, its C headers in `include/` | picolibc | BSD-style licences (`picolibc-COPYING`) |
 
 Passing the SDK on means keeping these notices with it (they are in
 `share/licenses/`). Programs built with it link the mingw-w64 start-up
@@ -19,6 +20,11 @@ code, and mingw-w64 asks that a program shipped in binary form comes with
 `mingw-w64/COPYING.MinGW-w64-runtime.txt` (the same is true of any
 mingw-w64 build). The LLVM parts that programs link (builtins, libc++)
 need no notice, thanks to the LLVM exception.
+
+Programs built with the `win32-picolibc` sysroot link picolibc instead of
+the mingw-w64 start-up code. Its licences are BSD-style: a program shipped
+in binary form should come with `picolibc-COPYING` (in its documentation,
+for example).
 
 The DLLs that programs call (`kernel32.dll`, `msvcrt.dll`, `crtdll.dll`,
 `unicows.dll`, ...) are part of Windows and are not in the SDK.
