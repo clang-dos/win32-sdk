@@ -30,11 +30,11 @@ done
 # Packages made before it have no picolibc sysroot.
 if [ -d "$pkg/sysroots/win32-picolibc" ]; then
   cp -R "$pkg/sysroots/win32-picolibc" "$d/sysroots/"
+  cp "$pkg/sysroots/win32-picolibc/share/licenses/picolibc-COPYING" \
+    "$d/share/licenses/win32-sdk/"
 else
   rm -f "$d/bin/win32-picolibc.cfg" "$d/bin/nt31-picolibc.cfg"
 fi
-cp "$pkg/sysroots/win32-picolibc/share/licenses/picolibc-COPYING" \
-  "$d/share/licenses/win32-sdk/" 2>/dev/null || :
 cp "$here/tools/check-imports.py" "$here/tools/msvcrt-versions.txt" \
   "$here/scripts/build-modern-sysroot.sh" "$d/share/clang-dos/"
 cp "$here/README.md" "$d/share/clang-dos/docs/win32-README.md"
