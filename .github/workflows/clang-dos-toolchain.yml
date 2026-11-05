@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   toolchain:
-    uses: clang-dos/dos-sdk/.github/workflows/toolchain.yml@main
+    uses: clang-retro/dos-sdk/.github/workflows/toolchain.yml@main
     with:
       win32_sdk_ref: ${{ github.event.pull_request.head.sha || github.sha }}
       windows: ${{ inputs.windows || false }}
