@@ -28,7 +28,8 @@ tests/                           the tests, run in Wine
 
 ```sh
 BIN=~/llvm/build/bin LLVM_SRC=~/llvm MINGW_SRC=~/mingw-w64 \
-LIBUNICOWS_SRC=~/libunicows-1.1.2 sh build-sysroot.sh NAME OUTPUT
+LIBUNICOWS_SRC=~/libunicows-1.1.2 PICOLIBC_SRC=~/picolibc \
+sh build-sysroot.sh NAME OUTPUT
 ```
 
 | NAME | For | Config files |
@@ -36,11 +37,12 @@ LIBUNICOWS_SRC=~/libunicows-1.1.2 sh build-sysroot.sh NAME OUTPUT
 | `win9x-msvcrt` | 95/98/ME and NT 4.0 (msvcrt.dll), with libunicows and libc++ | `nt4`, `win95`, `win98`, `winme` |
 | `win9x-crtdll` | NT 3.x, Win32s and 95 without msvcrt.dll (crtdll.dll), with libc++ | `win32s`, `nt31`, `nt35`, `nt351`, `win95-crtdll` |
 | `win2k-xp` | 2000 and XP, with libc++, libc++abi and libunwind | `win2000`, `winxp` |
+| `win32-picolibc` | 95/98/ME, NT 3.1 and later, with picolibc as the C library (no C runtime DLL) and libc++ | `win32-picolibc`, `nt31-picolibc` |
 | `win-vista` | Vista to 11, 32-bit, with libc++ | `vista`, `win7`, `win8`, `win81`, `win10` |
 | `win-vista-x64` | the same, 64-bit | `vista-x64`, `win7-x64`, ... |
 
 dos-sdk's toolchain workflow checks out this repository at `main` (or the
-`win32_sdk_ref` it is given), builds these five sysroots with
+`win32_sdk_ref` it is given), builds these sysroots with
 `build-sysroot.sh` and puts them and `cfg/` in the package, whose smoke
 test builds a program for each Windows version, checks it with
 `check-imports.py` and runs it in Wine.
@@ -320,7 +322,58 @@ NT 4.0 lack. On top of the 2000/XP code (below):
   (see above).
 
 The C runtime is still the system one, `msvcrt.dll` or `crtdll.dll`, with
-what it lacks (no `_l` functions, an old `printf`).
+what it lacks (no `_l` functions, an old `printf`). The `win32-picolibc`
+sysroot (below) replaces it.
+
+### picolibc instead of the system C runtime
+
+The `win32-picolibc` sysroot, built by `scripts/build-picolibc.sh`, has
+[picolibc](https://github.com/clang-dos/picolibc) (its `libos/win32`
+layer) as the C library in place of `msvcrt.dll` and `crtdll.dll`, and
+libc++ built on it. Programs link it statically and import only
+`kernel32.dll` and the system DLLs they call themselves, so one program
+runs on Windows 95, 98 and ME, Windows NT 3.1 and every later version
+with nothing to install:
+
+```sh
+clang --config=win32-picolibc.cfg -O2 hello.c -o hello.exe
+clang++ --config=win32-picolibc.cfg -O2 hello.cpp -o hello.exe
+```
+
+`win32-picolibc.cfg` is for Windows 95 and NT 4.0 and later.
+`nt31-picolibc.cfg` marks programs for Windows NT 3.1 (subsystem version
+3.10), which NT 3.x needs; they run on the later versions too, though 9x
+and NT 4.0 then draw their windows in the Windows 3.x style.
+
+What it adds over the system C runtime:
+
+* C99 and C11 `printf` and `scanf` (`%zu`, `%lld`, `%a`, `long double`,
+  positional arguments), `long double` math, `<uchar.h>`, a per-thread
+  `errno`, and POSIX functions (`getline`, `asprintf`,
+  `strndup`, `<dirent.h>`, `clock_gettime`, `nanosleep`, ...).
+* For C++: the locale, `wchar_t` and `long double` functions libc++
+  expects, so `std::format`, `std::print`, `<charconv>`, iostreams and
+  `<filesystem>` take the same paths as on other systems, with 64-bit file
+  positions everywhere (crtdll.dll has 32-bit ones).
+* `time_t` and `off_t` are 64 bits.
+* Files open in text mode (CR LF) by default, as with the Microsoft C
+  library; `O_BINARY`, `"b"`, `_fmode` and `setmode` work as there.
+  `_wfopen` and `_wopen` use the Unicode functions on NT and the ANSI
+  code page on 9x.
+
+The headers are mingw-w64's Windows API headers (`windows.h` and the
+rest) with picolibc's C library headers in place of mingw-w64's.
+Microsoft-only C runtime headers and functions (`<tchar.h>`, `<conio.h>`,
+`<direct.h>`, `_stricmp` and the like) are not there; `<io.h>` and
+`<process.h>` have the descriptor and thread functions (`_get_osfhandle`,
+`_open_osfhandle`, `_beginthreadex`).
+
+The config file passes `-fno-emulated-tls`: picolibc's `errno` and C++
+`thread_local` variables are native TLS. DLLs that a program loads at
+startup work on every version; a DLL loaded with `LoadLibrary` gets
+native TLS only on Vista and later, so on earlier versions such a DLL
+should use another sysroot. As elsewhere, TLS callbacks never run on 9x,
+so there `thread_local` destructors do not run when a thread ends.
 
 ### What does not work
 
