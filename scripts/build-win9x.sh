@@ -55,7 +55,9 @@ mkdir -p "$WORK/crt"
     --disable-libarm64 --with-default-msvcrt=$CRT >/dev/null &&
   make -j"$(nproc)" >/dev/null && make install >/dev/null)
 
-# compiler-rt builtins.
+# compiler-rt builtins, with the atomic functions: a 486 has no CMPXCHG8B,
+# so 64-bit atomics (which libc++ uses) are calls to __atomic_load_8 and so
+# on, which take a lock.
 cmake -G Ninja -S "$LLVM_SRC/compiler-rt/lib/builtins" -B "$WORK/builtins" \
   -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_C_COMPILER="$BIN/clang" -DCMAKE_ASM_COMPILER="$BIN/clang" \
@@ -66,6 +68,7 @@ cmake -G Ninja -S "$LLVM_SRC/compiler-rt/lib/builtins" -B "$WORK/builtins" \
   -DCMAKE_NM="$BIN/llvm-nm" \
   -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
   -DCOMPILER_RT_DEFAULT_TARGET_ONLY=ON -DCOMPILER_RT_OS_DIR=windows \
+  -DCOMPILER_RT_EXCLUDE_ATOMIC_BUILTIN=OFF \
   -DLLVM_CMAKE_DIR="$BIN/../lib/cmake/llvm" >/dev/null
 ninja -C "$WORK/builtins" >/dev/null
 builtins=$(find "$WORK/builtins/lib" -name 'libclang_rt.builtins*.a' | head -n 1)

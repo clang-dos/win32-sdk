@@ -4,8 +4,10 @@
 #
 #   build-sysroot.sh NAME OUTPUT
 #
-#   NAME            win9x-msvcrt    95/98/ME and NT 4.0 (msvcrt.dll), libunicows
-#                   win9x-crtdll    NT 3.x, Win32s and bare 95 (crtdll.dll)
+#   NAME            win9x-msvcrt    95/98/ME and NT 4.0 (msvcrt.dll), libunicows,
+#                                   libc++
+#                   win9x-crtdll    NT 3.x, Win32s and bare 95 (crtdll.dll),
+#                                   libc++
 #                   win2k-xp        2000/XP with libc++, libc++abi, libunwind
 #                   win-vista       Vista to 11, 32-bit, with libc++
 #                   win-vista-x64   the same, 64-bit
@@ -31,9 +33,11 @@ win9x-msvcrt)
   export LIBUNICOWS_SRC
   sh "$here/scripts/build-win9x.sh"
   WORK=$WORK/unicows sh "$here/scripts/build-unicows.sh"
+  WORK=$WORK/cxx CPU=i486 sh "$here/scripts/build-cxx.sh"
   ;;
 win9x-crtdll)
   CRT=crtdll sh "$here/scripts/build-win9x.sh"
+  WORK=$WORK/cxx CPU=i486 sh "$here/scripts/build-cxx.sh"
   ;;
 win2k-xp)
   WINNT=0x0500 CPU=i586 sh "$here/scripts/build-win9x.sh"

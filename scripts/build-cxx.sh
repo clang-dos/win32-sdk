@@ -1,19 +1,23 @@
 #!/bin/sh
 # Add libc++, libc++abi and libunwind to a sysroot from build-win9x.sh, for
-# C++ programs on Windows 2000 and XP (and later).
+# C++ programs on every Windows that sysroot is for: 95, 98, ME and NT 4.0
+# (msvcrt.dll), NT 3.x, Win32s and 95 (crtdll.dll), or 2000 and XP.
 #
-#   LLVM_SRC  llvm-project checkout with the Windows 2000/XP changes to libc++
-#             and libunwind (clang-dos/llvm)
+#   LLVM_SRC  llvm-project checkout with the changes to libc++ and libunwind
+#             for Windows before Vista (clang-dos/llvm)
 #   BIN       directory with clang, llvm-ar, llvm-ranlib, llvm-nm
-#   SYSROOT   sysroot from build-win9x.sh, built with WINNT=0x0500 or later
-#             and the default msvcrt.dll
+#   SYSROOT   sysroot from build-win9x.sh
 #   WORK      build directory (default: ./build-win32-cxx)
-#   CPU       -march for the libraries (default: i686)
+#   CPU       -march for the libraries (default: i686). C++ needs at least a
+#             486: atomics are LOCK XADD and LOCK CMPXCHG, which the 386
+#             lacks, even for -march=i386.
 #
 # The libraries are static. They use emulated TLS, like programs for
-# versions before Vista (see ../README.md), and the threading and locale code
-# for a Windows and msvcrt.dll without SRW locks, condition variables and _l
-# functions, chosen by the sysroot's _WIN32_WINNT.
+# versions before Vista (see ../README.md), and the code that the sysroot's
+# _WIN32_WINNT picks: for a Windows and msvcrt.dll without SRW locks,
+# condition variables and _l functions (below 0x0600), and for 9x, Win32s
+# and NT 3.x/4.0 (below 0x0500) also without TryEnterCriticalSection, the
+# Unicode file functions of 9x and a few later functions.
 #
 # Use it with:
 #   clang++ --target=i686-pc-windows5.1-gnu --sysroot=$SYSROOT \
