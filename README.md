@@ -516,6 +516,8 @@ on Windows 11 at `-O0` and `-O2`.
 
 ## License
 
+Copyright (C) clang-retro contributors.
+
 The clang-retro Win32 SDK is free software under the GNU Affero General Public
 License, version 3 only (`AGPL-3.0-only`); the full text is in
 [LICENSE](LICENSE). If you distribute a program built with it, or let
@@ -526,10 +528,5 @@ The sysroots it builds also hold mingw-w64, LLVM, picolibc and
 libunicows, each under its own license; [NOTICE.md](NOTICE.md) lists
 them.
 
-A commercial license, for programs that cannot meet those terms, is
-available from the clang-retro project; ask through
-[the clang-retro organization on GitHub](https://github.com/clang-retro).
-
-Contributions are accepted under the Contributor License Agreement in
-[CONTRIBUTING.md](CONTRIBUTING.md), which lets the project offer the
-code under both licenses.
+Each contributor keeps the copyright in their own work and contributes
+it under the same license; see [CONTRIBUTING.md](CONTRIBUTING.md).
