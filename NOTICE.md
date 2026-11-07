@@ -7,7 +7,7 @@ from source.
 
 | Part | Where it is | From | Licence |
 | --- | --- | --- | --- |
-| Build scripts, config files, checkers | `bin/*.cfg`, `share/clang-dos/` | clang-dos/win32-sdk | BSD 3-Clause (`win32-sdk-LICENSE`) |
+| Build scripts, config files, checkers | `bin/*.cfg`, `share/clang-dos/` | clang-dos/win32-sdk | AGPL-3.0-only (`win32-sdk-LICENSE`) |
 | Windows API headers | `include/` | mingw-w64 | Mostly public domain (`mingw-w64/DISCLAIMER.PD`); a few files carry notices of their own: ZPL 2.1 or LGPL 2.1 (some DirectX headers taken from Wine), and `dxcapi.h`, which Microsoft published under the University of Illinois licence (`mingw-w64/COPYING`) |
 | C runtime start-up and import libraries | `lib/crt*.o`, `lib/lib*.a` | mingw-w64 | ZPL 2.1 and public domain (`mingw-w64/COPYING.MinGW-w64-runtime.txt`) |
 | Compiler builtins, libc++, libc++abi, libunwind | `lib/libgcc.a`, `lib/libc++*.a`, `lib/libunwind.a`, `include/c++/` | LLVM | Apache 2.0 with LLVM exception (`LLVM-LICENSE.TXT`) |
