@@ -1,55 +1,61 @@
 # Contributing
 
-Thank you for helping. clang-retro is released under the GNU Affero
-General Public License, version 3 only, and is also offered under
-commercial licenses. That dual licensing works only if the project may
-license every part of the code both ways, so each contribution comes
-under the agreement below.
+Thank you for helping. clang-retro is free software under the GNU
+Affero General Public License, version 3 only. Its copyright belongs to
+the clang-retro contributors: each of them keeps the copyright in their
+own work.
 
-## Contributor License Agreement
+## Your contribution's license
 
 By submitting a contribution (a pull request, patch, or any other code,
 documentation or data offered for inclusion) to a clang-retro
-repository, you agree to the following for that contribution and every
-later one:
+repository, you license it under the GNU Affero General Public License,
+version 3 only, the license of the repository, and you certify the
+Developer Certificate of Origin below for it.
 
-1. **You may make it.** The contribution is your own original work, or
-   you have the right to submit it under these terms. If your employer
-   or anyone else has rights in it, they have allowed you to make this
-   agreement for it.
+Add a `Signed-off-by: Your Name <your@email>` line to each commit
+(`git commit -s` does it) to show that you certify it.
 
-2. **License to the project.** You grant the clang-retro project, and
-   anyone who receives software from it, a perpetual, worldwide,
-   non-exclusive, no-charge, royalty-free, irrevocable license to use,
-   copy, modify, distribute, sublicense and otherwise exploit the
-   contribution and works based on it, under any license terms,
-   including the GNU Affero General Public License and commercial
-   licenses.
+## Developer Certificate of Origin
 
-3. **Patents.** You grant the same parties a perpetual, worldwide,
-   non-exclusive, no-charge, royalty-free, irrevocable license under any
-   patent claims you can license that the contribution, alone or
-   combined with the project, would infringe, to make, use, sell, offer
-   for sale, import and otherwise transfer it.
+Version 1.1, from https://developercertificate.org/:
 
-4. **You keep your copyright.** This agreement is a license, not an
-   assignment: you can still use your contribution in any way you like.
+```
+Developer Certificate of Origin
+Version 1.1
 
-5. **The project stays free.** Every contribution the project accepts
-   will remain available under the GNU Affero General Public License,
-   version 3 only, or a later free software license.
+Copyright (C) 2004, 2006 The Linux Foundation and its contributors.
 
-6. **No warranty.** You give the contribution "as is", without
-   warranties or conditions of any kind, and you need not support it.
+Everyone is permitted to copy and distribute verbatim copies of this
+license document, but changing it is not allowed.
 
-7. **Third-party material.** Anything in a contribution that is not your
-   own work is marked as such, with its origin and license.
 
-To accept, add this line to the pull request's description, or post it
-as a comment on the pull request:
+Developer's Certificate of Origin 1.1
 
-> I have read the clang-retro Contributor License Agreement and agree
-> to it for this and all my future contributions.
+By making a contribution to this project, I certify that:
+
+(a) The contribution was created in whole or in part by me and I
+    have the right to submit it under the open source license
+    indicated in the file; or
+
+(b) The contribution is based upon previous work that, to the best
+    of my knowledge, is covered under an appropriate open source
+    license and I have the right under that license to submit that
+    work with modifications, whether created in whole or in part
+    by me, under the same open source license (unless I am
+    permitted to submit under a different license), as indicated
+    in the file; or
+
+(c) The contribution was provided directly to me by some other
+    person who certified (a), (b) or (c) and I have not modified
+    it.
+
+(d) I understand and agree that this project and the contribution
+    are public and that a record of the contribution (including all
+    personal information I submit with it, including my sign-off) is
+    maintained indefinitely and may be redistributed consistent with
+    this project or the open source license(s) involved.
+```
 
 ## Clean-room rule
 
@@ -57,8 +63,3 @@ clang-retro implements published APIs from their public documentation.
 Do not contribute code copied or adapted from Microsoft's MFC, ATL or
 Windows sources, or from any other source whose license does not allow
 it.
-
-## Questions
-
-For commercial licensing or questions about this agreement, ask through
-[the clang-retro organization on GitHub](https://github.com/clang-retro).
